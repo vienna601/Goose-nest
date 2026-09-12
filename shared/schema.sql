@@ -205,3 +205,8 @@ alter table listings add column if not exists is_available boolean not null defa
 
 create index if not exists listings_kind_idx       on listings (listing_kind);
 create index if not exists listings_lease_type_idx on listings (lease_type);
+
+-- 2026-09-12 (A) — Bamboo has no anonymous contact path (login-gated API), so
+-- 243 of 244 rows need an honest contact_method. 'unknown' would imply we just
+-- failed to parse it; we know exactly what it is.
+alter type contact_method_enum add value if not exists 'account_required';

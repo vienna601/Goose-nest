@@ -151,7 +151,10 @@ def from_bamboo(raw: dict, cache_key: str) -> Listing:
         id=str(uuid.uuid4()),
         source=Source.BAMBOO,
         source_id=str(raw["_id"]),
-        url=f"https://bamboohousing.ca/listing/{raw['_id']}",
+        # Bamboo has no per-listing permalink — I checked /listing/<id>,
+        # /listings/<id>, /property/<id> and friends; all 404. The cards render
+        # client-side off /homepage's payload. The id lives in `raw`.
+        url="https://bamboohousing.ca/homepage",
         address_raw=address,
         address_normalized=normalize_address(address),
         city="Waterloo",
@@ -168,8 +171,11 @@ def from_bamboo(raw: dict, cache_key: str) -> Listing:
         lease_type=LeaseType.SUBLET if is_sublet else LeaseType.LEASE,
         term_months=int(term) if term else None,
         available_date=parse_date(raw.get("RentFrom")),
-        contact_method=ContactMethod.FORM,
-        contact_url=f"https://bamboohousing.ca/listing/{raw['_id']}",
+        # No anonymous contact path: the bundle only exposes /api/mylistings,
+        # /api/profiles etc. behind an Authorization token. The agent cannot
+        # reach these, and we do not create accounts. Inventory only.
+        contact_method=ContactMethod.ACCOUNT_REQUIRED,
+        contact_url="https://bamboohousing.ca/homepage",
         image_url=raw.get("MainUrl"),
         images=raw.get("ImageUrls") or [],
         scraped_at=datetime.now(timezone.utc),

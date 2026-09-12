@@ -43,6 +43,7 @@ class ContactMethod(str, Enum):
     FORM = "form"      # browser agent on Steel
     EMAIL = "email"    # Resend fallback, no browser
     PHONE = "phone"    # draft only, surface to the user
+    ACCOUNT_REQUIRED = "account_required"  # platform login needed; we don't sign up
     UNKNOWN = "unknown"  # parsed the listing, couldn't determine. Not a crash.
 
 
@@ -146,15 +147,24 @@ class ScoreWeights(BaseModel):
     price: float = 1.0
     ion_proximity: float = 1.0
     beds_match: float = 1.0
+    term_match: float = 1.0        # a 4-month Fall sublet is not an 8-month one
     geese: float = 0.5
     highway: float = 0.25
     go_proximity: float = 0.25
 
 
 class SearchRequirements(BaseModel):
-    """The demo query encodes as:
-    beds_min=2, baths_min=1, price_max=2400, max_ion_walk_min=10, max_geese_score=2
+    """Waterloo inventory is overwhelmingly ROOMS in shared student houses
+    (243 of 244 rows), median $950, and 136 of them are 4- or 8-month sublets.
+    The search is shaped for that, not for whole apartments.
+
+    The demo query encodes as:
+      listing_kind=room, price_max=1000, lease_type=sublet, term_months=4,
+      max_ion_walk_min=10, max_geese_score=2
     """
+    listing_kind: Optional[ListingKind] = ListingKind.ROOM
+    lease_type: Optional[LeaseType] = None
+    term_months: Optional[int] = None        # 4 and 8 are the student terms
     price_min: Optional[int] = None
     price_max: Optional[int] = None
     beds_min: Optional[float] = None

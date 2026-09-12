@@ -24,7 +24,12 @@ export type ListingKind = "unit" | "room";
 
 export type LeaseType = "lease" | "sublet";
 
-export type ContactMethod = "form" | "email" | "phone" | "unknown";
+export type ContactMethod =
+  | "form"              // browser agent on Steel
+  | "email"             // Resend fallback
+  | "phone"             // draft only
+  | "account_required"  // platform login needed — show the link, no auto-contact
+  | "unknown";
 
 export type InquiryStatus =
   | "drafted"
@@ -117,12 +122,16 @@ export interface ScoreWeights {
   price: number;
   ion_proximity: number;
   beds_match: number;
+  term_match: number;
   geese: number;
   highway: number;
   go_proximity: number;
 }
 
 export interface SearchRequirements {
+  listing_kind: ListingKind | null; // defaults to "room" — that's the inventory
+  lease_type: LeaseType | null;
+  term_months: number | null;
   price_min: number | null;
   price_max: number | null;
   beds_min: number | null;
