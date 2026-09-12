@@ -1,0 +1,24 @@
+# caches & raw HTML dumps
+collection/cache/*
+!collection/cache/.gitkeep
+agent/transcripts/*
+!agent/transcripts/.gitkeep
+*.html.gz
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.env.local
+
+# node
+node_modules/
+.next/
+dist/
+
+# os
+.DS_Store
+
+NEXT_STEPS_A.md
