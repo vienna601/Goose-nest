@@ -16,7 +16,13 @@
 // Enums — string unions, so they compare directly against the API payload.
 // ---------------------------------------------------------------------------
 
-export type Source = "rentals_ca" | "rent_panda";
+export type Source = "rentals_ca" | "rent_panda" | "bamboo" | "homestead";
+
+/** Bamboo rents ROOMS in shared houses; other sources rent whole UNITS.
+ *  Never sort a $695 room against a $2400 apartment without showing the badge. */
+export type ListingKind = "unit" | "room";
+
+export type LeaseType = "lease" | "sublet";
 
 export type ContactMethod = "form" | "email" | "phone" | "unknown";
 
@@ -32,6 +38,8 @@ export type InquiryStatus =
 export const SOURCE_LABEL: Record<Source, string> = {
   rentals_ca: "Rentals.ca",
   rent_panda: "Rent Panda",
+  bamboo: "Bamboo Housing",
+  homestead: "Homestead",
 };
 
 // ---------------------------------------------------------------------------
@@ -62,11 +70,17 @@ export interface Listing {
   price_max: number | null;
 
   // specs
-  beds: number | null; // 0 = studio
+  listing_kind: ListingKind;
+  beds: number | null; // 0 = studio; for a room listing, the room itself
+  total_bedrooms: number | null; // bedrooms in the whole house
+  rooms_available: number | null;
   den: boolean;
   baths: number | null; // 1.5 is real
   sqft: number | null; // usually null on rentals.ca
   available_date: string | null; // ISO date, "2026-09-01"
+  is_available: boolean;
+  lease_type: LeaseType | null;
+  term_months: number | null; // 4 and 8 are the student sublet terms
 
   // contact
   contact_method: ContactMethod;

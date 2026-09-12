@@ -5,11 +5,7 @@ MIRRORED BY:
   shared/types.ts    frontend  (B)
   shared/schema.sql  Supabase  (C)
 
-If you change a field or an enum value here, change it in both mirrors in the
-same commit. Field names are snake_case everywhere, including TypeScript —
-we are not building a case-translation layer at a hackathon.
-
-CONVENTIONS (decided once, never revisited):
+CONVENTIONS:
   money      integer CAD dollars. No cents, no floats, no strings.
   distance   integer metres.
   duration   integer minutes. Walk time = metres / 80, rounded up.
@@ -34,8 +30,13 @@ from pydantic import BaseModel, Field
 # ---------------------------------------------------------------------------
 
 class Source(str, Enum):
-    RENTALS_CA = "rentals_ca"
-    RENT_PANDA = "rent_panda"
+    """Stored as plain text in Postgres — this list is the validation, so adding
+    a source is a one-line change here with no migration. See docs/sources.md
+    for which sources are reachable and which are challenge-gated."""
+    RENTALS_CA = "rentals_ca"     # Cloudflare-gated; manual fixtures only
+    RENT_PANDA = "rent_panda"     # 1 Waterloo listing; this is the agent target
+    BAMBOO = "bamboo"             # 248 Waterloo listings, the real inventory
+    HOMESTEAD = "homestead"
 
 
 class ContactMethod(str, Enum):
@@ -43,6 +44,19 @@ class ContactMethod(str, Enum):
     EMAIL = "email"    # Resend fallback, no browser
     PHONE = "phone"    # draft only, surface to the user
     UNKNOWN = "unknown"  # parsed the listing, couldn't determine. Not a crash.
+
+
+class ListingKind(str, Enum):
+    """Bamboo rents ROOMS in shared houses; rentals.ca rents whole UNITS. Price
+    is not comparable across the two, so ranking must never put a $695 room and
+    a $2400 apartment in the same sorted list without saying which is which."""
+    UNIT = "unit"
+    ROOM = "room"
+
+
+class LeaseType(str, Enum):
+    LEASE = "lease"
+    SUBLET = "sublet"
 
 
 class InquiryStatus(str, Enum):
@@ -84,11 +98,17 @@ class Listing(BaseModel):
     price_max: Optional[int] = None
 
     # --- specs --------------------------------------------------------------
-    beds: Optional[float] = None             # 0.0 = studio/bachelor. 1.0, 2.0...
+    listing_kind: ListingKind = ListingKind.UNIT
+    beds: Optional[float] = None             # bedrooms in the thing being rented
+    total_bedrooms: Optional[int] = None     # bedrooms in the whole house (room listings)
+    rooms_available: Optional[int] = None
     den: bool = False                        # "1+den" -> beds=1.0, den=True
     baths: Optional[float] = None            # 1.5 is real
     sqft: Optional[int] = None               # rentals.ca cards don't carry this
     available_date: Optional[date] = None    # Rent Panda exposes this
+    is_available: bool = True
+    lease_type: Optional[LeaseType] = None   # 136/248 Waterloo listings are sublets
+    term_months: Optional[int] = None        # 4 and 8 are the student terms
 
     # --- contact (drives the agent's branch) --------------------------------
     contact_method: ContactMethod = ContactMethod.UNKNOWN
