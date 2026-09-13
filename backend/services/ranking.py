@@ -21,6 +21,12 @@ def _allowed_prefixes(req):
 def passes_hard_filters(l: Listing, req: SearchRequirements) -> bool:
     if l.postal_prefix and l.postal_prefix not in _allowed_prefixes(req):
         return False
+    if req.listing_kind is not None and l.listing_kind != req.listing_kind:
+        return False
+    if req.lease_type is not None and l.lease_type is not None and l.lease_type != req.lease_type:
+        return False
+    if req.term_months is not None and l.term_months is not None and l.term_months != req.term_months:
+        return False
     price = l.price_min or l.price_max
     if req.price_max and price and price > req.price_max:
         return False
