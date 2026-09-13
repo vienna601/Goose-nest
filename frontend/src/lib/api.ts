@@ -1,4 +1,5 @@
-// FastAPI client. Everything goes through the Vite proxy at /api.
+// FastAPI client. Everything goes through /api: the Vite proxy in dev, the
+// rewrite in vercel.json in production.
 import type { Inquiry, Listing, ScoredListing, SearchRequirements, StreamEvent } from "@shared/types";
 
 const BASE = "/api";

@@ -1,0 +1,33 @@
+# Render Blueprint for the FastAPI backend. The frontend is on Vercel and
+# reaches this service through the /api rewrite in frontend/vercel.json.
+#
+# One instance, one worker: agent runs, approval futures and SSE listeners live
+# in process memory (backend/services/agent_service.py), so a second worker
+# would not know about runs started on the first.
+services:
+  - type: web
+    name: goose-nest-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt -r backend/requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.14"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: SCRAPER_CONTACT_EMAIL
+        sync: false
+      - key: STEEL_API_KEY
+        sync: false
+      - key: STEEL_PROFILE_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
+      - key: GEMINI_FALLBACK_MODEL
+        value: gemini-flash-lite-latest
