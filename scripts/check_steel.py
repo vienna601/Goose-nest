@@ -31,7 +31,7 @@ async def main() -> int:
     try:
         async with steel_browser() as live:
             print(f"steel session up\n  embed (what B iframes): {live.embed_url}\n  dashboard (your login): {live.dashboard_url}")
-            agent = Agent(task=TASK, llm=make_llm(), fallback_llm=make_fallback_llm(), browser_session=live.browser,
+            agent = Agent(task=TASK, llm=make_llm(), fallback_llm=make_fallback_llm(), browser_session=live.browser, use_judge=False,
                           use_vision=False, max_failures=4)
             hist = await agent.run(max_steps=6)
     except Exception as exc:

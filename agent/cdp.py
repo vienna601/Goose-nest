@@ -107,7 +107,12 @@ class CDP:
         self._tasks.append(asyncio.create_task(_loop()))
 
     @contextlib.asynccontextmanager
-    async def write_guard(self, host: str, blocked: Optional[list[str]] = None):
+    async def write_guard(
+        self,
+        host: str,
+        blocked: Optional[list[str]] = None,
+        allow_once: Optional[tuple[str, str]] = None,
+    ):
         """Fail every non-GET request to `host`, in every tab, for the duration.
 
         Two layers, because one isn't enough (verified on example.com):
@@ -118,15 +123,31 @@ class CDP:
         Blocked requests fail with BlockedByClient; the page sees a network
         error and nothing leaves the browser. `blocked` collects "METHOD path"
         for everything it stopped.
+
+        allow_once=("POST", "/tenant/showing/request") lets exactly one matching
+        request through and blocks every write after it, including a second
+        identical one. That's how "click Send exactly once" is enforced: the
+        agent did, in fact, click Send, then run JavaScript to click it again.
         """
         log = blocked if blocked is not None else []
+        # The same request pauses once per interception layer (browser + each tab),
+        # so the allowance is keyed on networkId, which both layers share. Keying on
+        # a counter let layer 1 spend it and layer 2 block the very same request.
+        allowed_ids: set[str] = set()
 
         async def on_paused(evt: dict) -> None:
             p = evt["params"]
             req = p["request"]
             session = evt.get("sessionId")
-            if urlparse(req["url"]).netloc == host and req["method"].upper() not in SAFE_METHODS:
-                log.append(f"{req['method']} {urlparse(req['url']).path}")
+            method, url = req["method"].upper(), urlparse(req["url"])
+            net_id = p.get("networkId") or p["requestId"]
+            if url.netloc == host and method not in SAFE_METHODS:
+                matches = bool(allow_once) and (method, url.path) == (allow_once[0].upper(), allow_once[1])
+                if matches and (net_id in allowed_ids or not allowed_ids):
+                    allowed_ids.add(net_id)
+                    await self.send("Fetch.continueRequest", {"requestId": p["requestId"]}, session=session)
+                    return
+                log.append(f"{method} {url.path}")
                 await self.send("Fetch.failRequest", {"requestId": p["requestId"], "errorReason": "BlockedByClient"}, session=session)
             else:
                 await self.send("Fetch.continueRequest", {"requestId": p["requestId"]}, session=session)

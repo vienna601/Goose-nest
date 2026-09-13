@@ -157,6 +157,11 @@ def fetch_listings(
     return [Listing.model_validate(row) for row in (query.execute().data or [])]
 
 
+def get_listing(listing_id: str) -> Optional[Listing]:
+    rows = get_client().table("listings").select("*").eq("id", listing_id).limit(1).execute().data
+    return Listing.model_validate(rows[0]) if rows else None
+
+
 def count_listings() -> int:
     resp = get_client().table("listings").select("id", count="exact").limit(1).execute()
     return resp.count or 0
@@ -170,6 +175,11 @@ def insert_inquiry(inquiry: Inquiry) -> dict[str, Any]:
     row = inquiry.model_dump(mode="json")
     resp = get_client().table("inquiries").insert(row).execute()
     return (resp.data or [{}])[0]
+
+
+def get_inquiry(inquiry_id: str) -> Optional[Inquiry]:
+    rows = get_client().table("inquiries").select("*").eq("id", inquiry_id).limit(1).execute().data
+    return Inquiry.model_validate(rows[0]) if rows else None
 
 
 def update_inquiry(inquiry_id: str, **fields: Any) -> dict[str, Any]:

@@ -9,9 +9,11 @@ One Steel session, logged in via the saved tenant profile, two agent runs:
           so even if the model clicks "Send request", nothing is sent.
   review  We read back what is ACTUALLY in the form (not what the model says it
           typed) and hand that to the human. Session kept alive meanwhile.
-  submit  Only after approve.approve() + approve.submit() pass. Guard lifted,
-          agent clicks "Send request" once, and we confirm on the tenant's
-          own showings page that the request exists.
+  submit  Only after approve.approve() + approve.submit() pass. The guard stays
+          on with allow_once=SEND_ENDPOINT: exactly one showing request can
+          leave the browser, every other write is still blocked. (Observed on
+          the first real submit: the agent clicked Send, then ran JavaScript to
+          click it again.) We confirm on the tenant's showings page.
 
 Refuses, before opening a browser: listings not in agent/allowlist.py, and
 anything draft.route() won't contact.
@@ -38,6 +40,7 @@ from agent.session import SESSION_CAP_MS, make_fallback_llm, make_llm, redact, s
 from shared.schema import ContactMethod, Inquiry, InquiryStatus, Listing
 
 HOST = "app.rentpanda.ca"
+SEND_ENDPOINT = ("POST", "/tenant/showing/request")   # from Rent Panda's route table (tenant.showing.request)
 SHOWINGS_URL = f"https://{HOST}/tenant/showings"
 APPROVAL_BUDGET_S = 8 * 60        # inside the 15-min session cap, with room to submit
 
@@ -179,7 +182,8 @@ async def request_showing(
                 inquiry = step(inquiry, "agent filling the showing request (sending is blocked)")
                 agent = Agent(task=fill_task(listing, slots, note), llm=make_llm(),
                               fallback_llm=make_fallback_llm(), browser_session=live.browser,
-                              use_vision=True, max_failures=4)
+                              use_vision=True, max_failures=4,
+                              use_judge=False)   # an extra Gemini call per run; the form is verified by read-back
                 history = await agent.run(max_steps=20)
                 form_page, values = await _form_values(cdp)
 
@@ -228,11 +232,15 @@ async def request_showing(
             # ---- submit, guard lifted -------------------------------------------
             if form_page is None or await cdp.js(form_page, READ_FORM_JS) != values:
                 return step(gate.fail(inquiry, "form changed between approval and submit"), "failed: form changed")
-            inquiry = step(inquiry, "approved — agent clicking Send request")
-            submit_agent = Agent(task=SUBMIT_TASK, llm=make_llm(), fallback_llm=make_fallback_llm(),
-                                 browser_session=live.browser, use_vision=True, max_failures=2)
-            await submit_agent.run(max_steps=4)
-            await asyncio.sleep(3)
+            inquiry = step(inquiry, "approved — agent clicking Send request (one send allowed)")
+            async with cdp.write_guard(HOST, allow_once=SEND_ENDPOINT) as extra_writes:
+                submit_agent = Agent(task=SUBMIT_TASK, llm=make_llm(), fallback_llm=make_fallback_llm(),
+                                     browser_session=live.browser, use_vision=True, max_failures=2,
+                                     max_actions_per_step=1, use_judge=False)
+                await submit_agent.run(max_steps=4)
+                await asyncio.sleep(3)
+            if extra_writes:
+                inquiry = step(inquiry, f"blocked {len(extra_writes)} extra write(s) after the send: {extra_writes}")
 
             after = await _showing_count(cdp, probe)
             log(f"  · tenant showings after: {after}")
