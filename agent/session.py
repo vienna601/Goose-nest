@@ -44,13 +44,25 @@ from typing import AsyncIterator
 
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "false")   # before browser_use imports
 
+import asyncio  # noqa: E402
+import random  # noqa: E402
+from typing import Any  # noqa: E402
+
 from browser_use import BrowserSession, ChatGoogle  # noqa: E402
+from google.genai import errors as genai_errors  # noqa: E402
 
 from agent.steel_common import client, connect_url, redact, viewer_urls  # noqa: E402
 
 # gemini-flash-latest is an alias Google re-points; it returned 503 "model is
 # currently overloaded" three times running while this pinned model answered.
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+# Separate per-model quota on Google's side, so a 429 or a 503 "high demand" on
+# the primary doesn't take the whole run down. Lite is weaker; it's a fallback.
+GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-flash-lite-latest")
+
+_RETRYABLE = {429, 500, 502, 503, 504}
+_MAX_ATTEMPTS = 5
+_MAX_WAIT_S = 45.0
 INACTIVITY_MS = 180_000          # milliseconds. See note 1.
 SESSION_CAP_MS = 15 * 60_000     # api_timeout: default 5 min is too short with a human approving; 15 is the launch-plan max
 PROFILE_ID = os.getenv("STEEL_PROFILE_ID") or None   # written by scripts/steel_login.py
@@ -66,8 +78,53 @@ for _name in ("browser_use", "cdp_use", "bubus"):
     logging.getLogger(_name).addFilter(_RedactingFilter())
 
 
-def make_llm() -> ChatGoogle:
-    return ChatGoogle(model=GEMINI_MODEL, api_key=os.environ["GEMINI_API_KEY"])
+def _retry_after(exc: genai_errors.APIError) -> float | None:
+    """Google puts the wait it wants in error.details[].retryDelay, e.g. "14s"."""
+    body = exc.details if isinstance(exc.details, dict) else {}
+    for detail in (body.get("error") or {}).get("details") or []:
+        delay = str(detail.get("retryDelay") or "")
+        if delay.endswith("s"):
+            with contextlib.suppress(ValueError):
+                return float(delay[:-1])
+    return None
+
+
+class PatientGemini(ChatGoogle):
+    """ChatGoogle that actually retries Gemini's 429s and 503s.
+
+    browser-use 0.13.10's own retry loop only catches its ModelProviderError,
+    but google-genai raises ClientError / ServerError, which sail straight past
+    it. Observed live: every "503 high demand" and "429 limit: 5 per minute"
+    became an instant failed agent step, the agent retried immediately, burned
+    the per-minute quota in seconds, and gave up mid-form.
+
+    We honour Google's retryDelay when it gives one, else back off 2, 4, 8…s.
+    """
+
+    async def ainvoke(self, messages: list, output_format: Any = None, **kwargs: Any):
+        for attempt in range(_MAX_ATTEMPTS):
+            try:
+                return await super().ainvoke(messages, output_format, **kwargs)
+            except genai_errors.APIError as exc:
+                if exc.code not in _RETRYABLE or attempt == _MAX_ATTEMPTS - 1:
+                    raise
+                wait = min(_retry_after(exc) or 2.0 * 2 ** attempt, _MAX_WAIT_S)
+                wait += random.uniform(0, 1.0)
+                logging.getLogger("browser_use").warning(
+                    f"Gemini {exc.code} on {self.model}; waiting {wait:.0f}s "
+                    f"(attempt {attempt + 1}/{_MAX_ATTEMPTS})"
+                )
+                await asyncio.sleep(wait)
+
+
+def make_llm(model: str | None = None) -> ChatGoogle:
+    return PatientGemini(model=model or GEMINI_MODEL, api_key=os.environ["GEMINI_API_KEY"])
+
+
+def make_fallback_llm() -> ChatGoogle:
+    """Pass as Agent(fallback_llm=...). browser-use switches to it when the
+    primary keeps failing."""
+    return make_llm(GEMINI_FALLBACK_MODEL)
 
 
 @dataclass

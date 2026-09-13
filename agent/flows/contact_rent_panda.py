@@ -34,7 +34,7 @@ from agent import approve as gate
 from agent.allowlist import check_allowed
 from agent.cdp import CDP
 from agent.draft import route
-from agent.session import SESSION_CAP_MS, make_llm, redact, steel_browser
+from agent.session import SESSION_CAP_MS, make_fallback_llm, make_llm, redact, steel_browser
 from shared.schema import ContactMethod, Inquiry, InquiryStatus, Listing
 
 HOST = "app.rentpanda.ca"
@@ -178,7 +178,8 @@ async def request_showing(
             async with cdp.write_guard(HOST) as blocked:
                 inquiry = step(inquiry, "agent filling the showing request (sending is blocked)")
                 agent = Agent(task=fill_task(listing, slots, note), llm=make_llm(),
-                              browser_session=live.browser, use_vision=True, max_failures=4)
+                              fallback_llm=make_fallback_llm(), browser_session=live.browser,
+                              use_vision=True, max_failures=4)
                 history = await agent.run(max_steps=20)
                 form_page, values = await _form_values(cdp)
 
@@ -228,8 +229,8 @@ async def request_showing(
             if form_page is None or await cdp.js(form_page, READ_FORM_JS) != values:
                 return step(gate.fail(inquiry, "form changed between approval and submit"), "failed: form changed")
             inquiry = step(inquiry, "approved — agent clicking Send request")
-            submit_agent = Agent(task=SUBMIT_TASK, llm=make_llm(), browser_session=live.browser,
-                                 use_vision=True, max_failures=2)
+            submit_agent = Agent(task=SUBMIT_TASK, llm=make_llm(), fallback_llm=make_fallback_llm(),
+                                 browser_session=live.browser, use_vision=True, max_failures=2)
             await submit_agent.run(max_steps=4)
             await asyncio.sleep(3)
 

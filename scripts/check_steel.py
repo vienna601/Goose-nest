@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from browser_use import Agent  # noqa: E402
 
-from agent.session import GEMINI_MODEL, make_llm, redact, steel_browser  # noqa: E402
+from agent.session import GEMINI_FALLBACK_MODEL, GEMINI_MODEL, make_fallback_llm, make_llm, redact, steel_browser  # noqa: E402
 
 TASK = (
     "Go to https://app.rentpanda.ca/search-result . Read the page. Report the price "
@@ -31,13 +31,13 @@ async def main() -> int:
     try:
         async with steel_browser() as live:
             print(f"steel session up\n  embed (what B iframes): {live.embed_url}\n  dashboard (your login): {live.dashboard_url}")
-            agent = Agent(task=TASK, llm=make_llm(), browser_session=live.browser,
+            agent = Agent(task=TASK, llm=make_llm(), fallback_llm=make_fallback_llm(), browser_session=live.browser,
                           use_vision=False, max_failures=4)
             hist = await agent.run(max_steps=6)
     except Exception as exc:
         print(f"FAIL  {type(exc).__name__}: {redact(exc)[:200]}")
         return 1
-    print(f"model: {GEMINI_MODEL} | steps: {hist.number_of_steps()} | {time.time() - t:.0f}s")
+    print(f"model: {GEMINI_MODEL} (fallback {GEMINI_FALLBACK_MODEL}) | steps: {hist.number_of_steps()} | {time.time() - t:.0f}s")
     print(f"result: {redact(hist.final_result())}")
     if not hist.is_successful():
         print("FAIL  agent did not finish:", [redact(e)[:90] for e in hist.errors() if e])
