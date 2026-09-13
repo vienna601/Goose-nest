@@ -1,0 +1,11 @@
+# Collection + agent (owner: A). Python 3.9+.
+httpx==0.27.2
+selectolax==0.3.21
+tenacity==9.0.0
+pydantic==2.9.2
+python-dotenv==1.0.1
+supabase==2.31.0
+
+# Agent (A10+). Needs STEEL_API_KEY and ANTHROPIC_API_KEY in .env.
+browser-use==0.1.40
+steel-sdk==0.1.0b6

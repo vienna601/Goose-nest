@@ -1,15 +1,36 @@
 -- Supabase DDL — mirror of shared/schema.py. Proposal for C.
 -- Enum values below MUST match the Python enums character for character.
+--
+-- Re-runnable: paste the whole file into the Supabase SQL editor as many times
+-- as you like. Enums are guarded, tables are `if not exists`, policies are
+-- dropped before create. It will NOT drop or alter an existing column — if you
+-- add a field to schema.py mid-hack, add an `alter table ... add column if not
+-- exists` to the MIGRATIONS section at the bottom.
 
-create type source_enum        as enum ('rentals_ca', 'rent_panda');
-create type contact_method_enum as enum ('form', 'email', 'phone', 'unknown');
-create type inquiry_status_enum as enum (
-  'drafted', 'pending_approval', 'approved', 'submitted', 'failed', 'cancelled'
-);
+-- ---------------------------------------------------------------------------
+-- Enums
+-- ---------------------------------------------------------------------------
 
-create table listings (
+-- `source` is deliberately NOT an enum — see the MIGRATIONS note at the bottom.
+-- shared/schema.py holds the canonical list and does the validating.
+
+do $$ begin
+  create type contact_method_enum as enum ('form', 'email', 'phone', 'unknown');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type inquiry_status_enum as enum (
+    'drafted', 'pending_approval', 'approved', 'submitted', 'failed', 'cancelled'
+  );
+exception when duplicate_object then null; end $$;
+
+-- ---------------------------------------------------------------------------
+-- listings
+-- ---------------------------------------------------------------------------
+
+create table if not exists listings (
   id                uuid primary key default gen_random_uuid(),
-  source            source_enum not null,
+  source            text        not null,
   source_id         text        not null,
   url               text        not null,
   cluster_id        uuid,
@@ -55,15 +76,21 @@ create table listings (
   raw        jsonb not null default '{}'::jsonb,
 
   -- Re-running the collector updates rows instead of duplicating them.
-  unique (source, source_id)
+  -- Named explicitly because shared/db.py passes it as the upsert target.
+  constraint listings_source_source_id_key unique (source, source_id)
 );
 
-create index listings_cluster_idx  on listings (cluster_id);
-create index listings_price_idx    on listings (price_max);
-create index listings_beds_idx     on listings (beds);
-create index listings_ion_idx      on listings (ion_walk_min);
+create index if not exists listings_cluster_idx on listings (cluster_id);
+create index if not exists listings_price_idx   on listings (price_max);
+create index if not exists listings_beds_idx    on listings (beds);
+create index if not exists listings_ion_idx     on listings (ion_walk_min);
+create index if not exists listings_postal_idx  on listings (postal_prefix);
 
-create table inquiries (
+-- ---------------------------------------------------------------------------
+-- inquiries
+-- ---------------------------------------------------------------------------
+
+create table if not exists inquiries (
   id         uuid primary key default gen_random_uuid(),
   listing_id uuid not null references listings(id) on delete cascade,
   status     inquiry_status_enum not null default 'drafted',
@@ -91,7 +118,14 @@ create table inquiries (
     check (submitted_at is null or approved_at is not null)
 );
 
-create table lease_analyses (
+create index if not exists inquiries_listing_idx on inquiries (listing_id);
+create index if not exists inquiries_status_idx  on inquiries (status);
+
+-- ---------------------------------------------------------------------------
+-- lease_analyses
+-- ---------------------------------------------------------------------------
+
+create table if not exists lease_analyses (
   id           uuid primary key default gen_random_uuid(),
   listing_id   uuid references listings(id) on delete set null,
   filename     text not null,
@@ -104,3 +138,75 @@ create table lease_analyses (
   summary      text,
   created_at   timestamptz not null default now()
 );
+
+-- ---------------------------------------------------------------------------
+-- Row Level Security
+--
+-- Supabase exposes every table over PostgREST to anyone holding the publishable
+-- key, and that key ships in B's frontend bundle. Without RLS that is a public
+-- read/write endpoint on our inquiries table. So: RLS on everywhere, the
+-- publishable key gets SELECT only, and all writes go through the secret key
+-- from the backend (it bypasses RLS — that is why it never leaves the server).
+--
+-- `anon` and `authenticated` below are POSTGRES ROLE names, not key names, and
+-- they did not change when the keys were renamed. A request carrying the
+-- publishable key still arrives as the `anon` role; the secret key arrives as
+-- `service_role`. Do not "modernize" these to publishable/secret — there are no
+-- such roles and the policies will fail to create.
+-- ---------------------------------------------------------------------------
+
+alter table listings       enable row level security;
+alter table inquiries      enable row level security;
+alter table lease_analyses enable row level security;
+
+drop policy if exists listings_anon_read on listings;
+create policy listings_anon_read on listings
+  for select to anon, authenticated using (true);
+
+drop policy if exists inquiries_anon_read on inquiries;
+create policy inquiries_anon_read on inquiries
+  for select to anon, authenticated using (true);
+
+drop policy if exists lease_analyses_anon_read on lease_analyses;
+create policy lease_analyses_anon_read on lease_analyses
+  for select to anon, authenticated using (true);
+
+-- ---------------------------------------------------------------------------
+-- MIGRATIONS — append here when schema.py changes mid-hack, so the file stays
+-- safe to re-run against a database that already has data in it.
+-- e.g.  alter table listings add column if not exists pet_friendly boolean;
+-- ---------------------------------------------------------------------------
+
+-- 2026-09-12 (A) — the source survey forced three changes. See docs/sources.md.
+
+-- 1. `source` stops being an enum. We churned sources twice in one morning
+--    (rentals.ca out on a bot challenge, bamboo in) and each change would have
+--    been a type migration. The canonical list now lives in shared/schema.py,
+--    which still validates it; Postgres just stores the text.
+alter table listings alter column source type text using source::text;
+drop type if exists source_enum;
+
+-- 2. Room vs unit. Bamboo listings are ROOMS in shared student houses — a
+--    5-bedroom house with one $695 room free. rentals.ca-style listings are
+--    whole units. Ranking "under $2400" across both without this column
+--    compares a single bedroom against an entire apartment and calls it a win.
+alter table listings add column if not exists listing_kind text not null default 'unit'
+  check (listing_kind in ('unit', 'room'));
+alter table listings add column if not exists total_bedrooms int;   -- in the whole house
+alter table listings add column if not exists rooms_available int;
+
+-- 3. Sublet vs lease. 136 of 248 real Waterloo listings are 4- or 8-month
+--    sublets. For a student search that is a primary filter, not a footnote.
+alter table listings add column if not exists lease_type text
+  check (lease_type is null or lease_type in ('lease', 'sublet'));
+alter table listings add column if not exists term_months int;
+
+alter table listings add column if not exists is_available boolean not null default true;
+
+create index if not exists listings_kind_idx       on listings (listing_kind);
+create index if not exists listings_lease_type_idx on listings (lease_type);
+
+-- 2026-09-12 (A) — Bamboo has no anonymous contact path (login-gated API), so
+-- 243 of 244 rows need an honest contact_method. 'unknown' would imply we just
+-- failed to parse it; we know exactly what it is.
+alter type contact_method_enum add value if not exists 'account_required';

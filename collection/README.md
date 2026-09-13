@@ -15,7 +15,8 @@ Rules:
   cache, never re-fetch, while iterating on selectors.
 - Full Waterloo pull happens ONCE (~H4). After that, work off cache.
 
-Geofence: Waterloo city only — N2J N2K N2L N2M N2T N2V.
+Geofence: Waterloo city only — N2J N2K N2L N2T N2V. (N2M is Kitchener, not
+Waterloo — the original plan had it wrong.)
 Kitchener/Cambridge stay behind a flag.
 
 fixtures/ holds a few saved pages committed to the repo so parser tests run
