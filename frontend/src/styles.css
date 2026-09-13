@@ -330,5 +330,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   .factor { grid-template-columns: 10px 90px 1fr 44px; }
   .factor span:nth-child(3) { font-size: 11.5px; }
   .inq { grid-template-columns: 44px minmax(0, 1fr); }
+  .nav-tab { padding: 8px; font-size: 13px; white-space: nowrap; }
+  .nav-dot { display: none; }
+  .shortbar-inner { padding: 12px 14px; gap: 10px; }
+  .shortbar-inner > :not(.btn-cta) { display: none; }
+  .shortbar-inner .btn-cta { width: 100%; }
   .listing-strip { flex-wrap: wrap; }
 }
