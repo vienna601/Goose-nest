@@ -1,6 +1,6 @@
-# services/ranking.py — weighted, explainable scoring. Pure functions, no network.
 from __future__ import annotations
-from schema import Listing, SearchRequirements, ScoreWeights, ScoreFactor, ScoredListing
+from schema import (Listing, SearchRequirements, ScoreWeights, ScoreFactor,
+                    ScoredListing, ListingKind)
 
 WATERLOO_PREFIXES = {"N2J", "N2K", "N2L", "N2M", "N2T", "N2V"}
 KIT_CAM_PREFIXES  = {"N2A", "N2B", "N2C", "N2E", "N2G", "N2H", "N2N", "N2P", "N2R",
@@ -17,8 +17,14 @@ def _allowed_prefixes(req):
     return a
 
 
-# ---- hard filters: decide in/out ----
+# ---- hard filters ----
 def passes_hard_filters(l: Listing, req: SearchRequirements) -> bool:
+    if not l.is_available:
+        return False
+    if req.listing_kind is not None and l.listing_kind != req.listing_kind:
+        return False   # never mix rooms and whole units
+    if req.lease_type is not None and l.lease_type is not None and l.lease_type != req.lease_type:
+        return False
     if l.postal_prefix and l.postal_prefix not in _allowed_prefixes(req):
         return False
     price = l.price_min or l.price_max
@@ -44,7 +50,7 @@ def passes_hard_filters(l: Listing, req: SearchRequirements) -> bool:
 # ---- soft scorers: (normalized 0..1, raw, short label, explanation) ----
 def _s_price(l, req):
     price = l.price_min or l.price_max
-    budget = req.price_max or 3000
+    budget = req.price_max or (1200 if req.listing_kind == ListingKind.ROOM else 3000)
     if not price:
         return 0.0, None, "price unknown", "no price listed"
     return _clamp((budget - price) / budget), float(price), f"${price:,}/mo", \
@@ -57,8 +63,10 @@ def _s_ion(l, req):
         f"{l.ion_walk_min} min to ION", f"{l.ion_walk_min} min walk to {l.nearest_ion_stop}"
 
 def _s_beds(l, req):
+    if req.beds_min is None and req.beds_max is None:
+        return 1.0, (l.beds if l.beds is not None else None), "beds: any", "no bed preference"
     if l.beds is None:
-        return 0.0, None, "beds unknown", "no bed count"
+        return 0.5, None, "beds unknown", "bed count not listed"
     lo = req.beds_min if req.beds_min is not None else l.beds
     hi = req.beds_max if req.beds_max is not None else l.beds
     label = "studio" if l.beds == 0 else f"{l.beds:g} bed" + ("+den" if l.den else "")
@@ -66,6 +74,16 @@ def _s_beds(l, req):
         return 1.0, l.beds, label, f"{label} — matches"
     target = lo if l.beds < lo else hi
     return _clamp(1 - abs(l.beds - target) / 2), l.beds, label, f"{label} — wanted {lo:g}-{hi:g}"
+
+def _s_term(l, req):
+    if req.term_months is None:
+        return 1.0, (float(l.term_months) if l.term_months else None), "term: any", "no term preference"
+    if l.term_months is None:
+        return 0.5, None, "term unknown", "term not listed"
+    if l.term_months == req.term_months:
+        return 1.0, float(l.term_months), f"{l.term_months}-mo term", f"{l.term_months}-month term matches"
+    return _clamp(1 - abs(l.term_months - req.term_months) / 8), float(l.term_months), \
+        f"{l.term_months}-mo term", f"{l.term_months}-month vs wanted {req.term_months}"
 
 def _s_geese(l, req):
     if l.geese_score is None:
@@ -94,6 +112,7 @@ SCORERS = {
     "price":         ("Price", _s_price),
     "ion_proximity": ("ION proximity", _s_ion),
     "beds_match":    ("Bedrooms", _s_beds),
+    "term_match":    ("Term", _s_term),
     "geese":         ("Geese", _s_geese),
     "highway":       ("Highway access", _s_highway),
     "go_proximity":  ("GO proximity", _s_go),
@@ -102,7 +121,8 @@ SCORERS = {
 
 def _norm_weights(w: ScoreWeights):
     raw = {"price": w.price, "ion_proximity": w.ion_proximity, "beds_match": w.beds_match,
-           "geese": w.geese, "highway": w.highway, "go_proximity": w.go_proximity}
+           "term_match": w.term_match, "geese": w.geese, "highway": w.highway,
+           "go_proximity": w.go_proximity}
     total = sum(raw.values()) or 1.0
     return {k: v / total for k, v in raw.items()}
 
@@ -123,7 +143,6 @@ def score_listing(l: Listing, req: SearchRequirements) -> ScoredListing:
 def search(listings: list[Listing], req: SearchRequirements) -> list[ScoredListing]:
     survivors = [l for l in listings if passes_hard_filters(l, req)]
 
-    # collapse cross-source dupes (same building) into one card per cluster
     reps, seen = [], {}
     for l in survivors:
         if l.cluster_id:
@@ -131,12 +150,11 @@ def search(listings: list[Listing], req: SearchRequirements) -> list[ScoredListi
                 seen[l.cluster_id] = l
                 reps.append(l)
             elif (l.price_min or 1e9) < (seen[l.cluster_id].price_min or 1e9):
-                reps[reps.index(seen[l.cluster_id])] = l   # keep the cheaper listing
+                reps[reps.index(seen[l.cluster_id])] = l
                 seen[l.cluster_id] = l
         else:
             reps.append(l)
 
-    # which sources each cluster appears on (across ALL listings)
     cluster_sources = {}
     for l in listings:
         if l.cluster_id:
