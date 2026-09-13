@@ -1,0 +1,23 @@
+{
+ "1 Columbia St W, Waterloo, ON N2L 0C8 CA": {
+  "lat": 43.4814454,
+  "lng": -80.5266499,
+  "display_name": "The Marq Waterloo, 1, Columbia Street West, Waterloo, Region of Waterloo, Southwestern Ontario, Ontario, N2J 2Z2, Canada"
+ },
+ "254 Phillip St, Waterloo, ON N2L 0E1": {
+  "lat": 43.4739848,
+  "lng": -80.5362382,
+  "display_name": "Fergus House, 254, Phillip Street, Northdale, Waterloo, Region of Waterloo, Southwestern Ontario, Ontario, N2L 0E1, Canada"
+ },
+ "250 Lester St, Waterloo, ON N2L 3W6": {
+  "lat": 43.4738763,
+  "lng": -80.5343657,
+  "display_name": "250, Lester Street, Northdale, Waterloo, Region of Waterloo, Southwestern Ontario, Ontario, N2L 3W5, Canada"
+ },
+ "550 King St N, Waterloo, Ontario, N2L 5W6": {
+  "lat": 43.4979553,
+  "lng": -80.5261961,
+  "display_name": "Freshly Squeezed, 550, King Street North, Waterloo, Region of Waterloo, Southwestern Ontario, Ontario, N2L 5W6, Canada"
+ },
+ "Waterloo, ON N2L 4H9 CA": null
+}

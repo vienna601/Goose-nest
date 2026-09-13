@@ -52,6 +52,24 @@ def build(tri_city: bool) -> list[Listing]:
     return rows
 
 
+def fill_coords(rows: list[Listing]) -> list[Listing]:
+    """Geocode rows whose coordinates were missing or implausible (see
+    collection/geocode.py). Cache-first, so this is offline after one run."""
+    from collection.geocode import geocode
+
+    missing = [r for r in rows if r.lat is None]
+    if not missing:
+        return rows
+    fixed = {}
+    for r in missing:
+        hit = geocode(r.address_raw) if r.address_raw else None
+        if hit:
+            fixed[r.source_id] = r.model_copy(update={"lat": hit[0], "lng": hit[1]})
+    print(f"  coords: {len(missing)} missing/implausible, {len(fixed)} geocoded"
+          + (f", {len(missing) - len(fixed)} left without coords" if len(missing) > len(fixed) else ""))
+    return [fixed.get(r.source_id, r) for r in rows]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tri-city", action="store_true", help="include Kitchener/Cambridge")
@@ -64,6 +82,7 @@ def main() -> int:
         print("nothing to load")
         return 1
 
+    rows = fill_coords(rows)
     print(f"\n{len(rows)} listings ready")
     print("  by source:", dict(Counter(r.source.value for r in rows)))
     print("  by kind:  ", dict(Counter(r.listing_kind.value for r in rows)))

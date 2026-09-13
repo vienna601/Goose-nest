@@ -50,17 +50,18 @@ Our contact-form step is that premise in miniature:
 > inquiry form, and stops. You see the filled form, you approve it, and only
 > then does it send. You'll watch it happen live in about a minute.
 >
-> Then it reads the lease and puts every deadline on your calendar.
+> And it never sends a thing until you've held the button.
 
 ## One-liner
 
-> An agent that does the annoying half of apartment hunting — contacting
-> landlords and reading the lease — with a human approving every message
-> before it sends.
+> An agent that does the annoying half of apartment hunting — filling out the
+> landlord's form — with a human approving every request before it sends.
 
 ## Notes for the demo
 
 - Contact **our own test listing**. Say that out loud on stage.
+- Lease analysis was planned and not built — don't promise it. The full
+  5-minute script is in docs/pitch_5min.md.
 - Keep the approval gate visible. It is a feature, not a disclaimer.
 - If the live form flow breaks, the fallback is a drafted message plus a
   one-click mailto. Rehearse saying that without apologizing for it.

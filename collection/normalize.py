@@ -20,6 +20,29 @@ from shared.schema import ContactMethod, LeaseType, Listing, ListingKind, Source
 WATERLOO_PREFIXES = {"N2J", "N2K", "N2L", "N2T", "N2V"}
 TRI_CITY = {"waterloo", "kitchener", "cambridge"}
 
+# Kitchener-Waterloo-Cambridge bounding box — the same one C's geocoder biases
+# to (backend/services/geocode.py WATERLOO_BOUNDS). Anything outside it is a bad
+# pin, not a Waterloo listing.
+KW_BOX = (43.36, -80.62, 43.53, -80.44)   # south, west, north, east
+
+
+def plausible_coords(lat: Optional[float], lng: Optional[float]) -> bool:
+    if lat is None or lng is None:
+        return False
+    south, west, north, east = KW_BOX
+    return south <= lat <= north and west <= lng <= east
+
+
+def _coords(lat: Any, lng: Any) -> tuple[Optional[float], Optional[float]]:
+    """Drop coordinates that can't be right. A missing walk time is better than
+    "1110 min walk to Fairway". The original values stay in `raw`."""
+    try:
+        lat, lng = float(lat), float(lng)
+    except (TypeError, ValueError):
+        return None, None
+    return (lat, lng) if plausible_coords(lat, lng) else (None, None)
+
+
 _POSTAL = re.compile(r"\b([A-Z]\d[A-Z])\s*\d[A-Z]\d\b", re.I)
 
 
@@ -118,8 +141,8 @@ def from_rent_panda(raw: dict, cache_key: str) -> Listing:
         address_normalized=normalize_address(address),
         city=(raw.get("city") or "").strip().title() or "Unknown",
         postal_prefix=postal_prefix(address),
-        lat=raw.get("latitude"),
-        lng=raw.get("longitude"),
+        lat=_coords(raw.get("latitude"), raw.get("longitude"))[0],
+        lng=_coords(raw.get("latitude"), raw.get("longitude"))[1],
         price_min=price,
         price_max=price,          # single price: both set, so filters never branch
         beds=beds,
@@ -159,8 +182,8 @@ def from_bamboo(raw: dict, cache_key: str) -> Listing:
         address_normalized=normalize_address(address),
         city="Waterloo",
         postal_prefix=postal_prefix(address),
-        lat=raw.get("Latitude"),
-        lng=raw.get("Longitude"),
+        lat=_coords(raw.get("Latitude"), raw.get("Longitude"))[0],
+        lng=_coords(raw.get("Latitude"), raw.get("Longitude"))[1],
         price_min=parse_price(raw.get("Price")),
         price_max=parse_price(raw.get("Price")),
         listing_kind=ListingKind.ROOM,

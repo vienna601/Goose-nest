@@ -157,7 +157,19 @@ def fetch_listings(
     return [Listing.model_validate(row) for row in (query.execute().data or [])]
 
 
+def _is_uuid(value: str) -> bool:
+    """ids are uuid columns: Postgres answers a malformed one with 22P02 (-> HTTP
+    500), not an empty result. A bad id is just "not found"."""
+    try:
+        uuid.UUID(str(value))
+        return True
+    except ValueError:
+        return False
+
+
 def get_listing(listing_id: str) -> Optional[Listing]:
+    if not _is_uuid(listing_id):
+        return None
     rows = get_client().table("listings").select("*").eq("id", listing_id).limit(1).execute().data
     return Listing.model_validate(rows[0]) if rows else None
 
@@ -178,6 +190,8 @@ def insert_inquiry(inquiry: Inquiry) -> dict[str, Any]:
 
 
 def get_inquiry(inquiry_id: str) -> Optional[Inquiry]:
+    if not _is_uuid(inquiry_id):
+        return None
     rows = get_client().table("inquiries").select("*").eq("id", inquiry_id).limit(1).execute().data
     return Inquiry.model_validate(rows[0]) if rows else None
 
