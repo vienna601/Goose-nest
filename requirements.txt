@@ -1,14 +1,16 @@
-# Collection + agent (owner: A). Python 3.11+ — browser-use refuses anything older.
-httpx==0.27.2
-selectolax==0.3.21
-tenacity==9.0.0
-pydantic==2.9.2
-python-dotenv==1.0.1
+# Collection + agent (owner: A). Python 3.11+ — browser-use refuses anything older. Built on 3.14.
+# Ranges, not exact pins: exact pins conflicted (pydantic 2.9.2 vs supabase
+# realtime's >=2.11.7) and had no wheels for newer Pythons.
+httpx>=0.27,<1
+selectolax>=0.3.21
+tenacity>=9,<10
+pydantic>=2.11.7,<3
+python-dotenv>=1.0.1
 supabase==2.31.0
 
 # Agent (A10+). Needs STEEL_API_KEY and GEMINI_API_KEY in .env.
 # steel-sdk 0.19.0 API verified by introspection: sessions.create() returns
 # websocket_url (CDP, what browser-use connects to) and session_viewer_url
-# (what B iframes). browser-use itself is unverified until we're on 3.11+.
+# (what B iframes). browser-use 0.13.10 verified live end to end — see agent/session.py.
 steel-sdk==0.19.0
 browser-use>=0.13,<0.14

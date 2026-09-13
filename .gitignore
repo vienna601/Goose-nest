@@ -8,7 +8,7 @@ agent/transcripts/*
 # python
 __pycache__/
 *.pyc
-.venv/
+.venv*/
 venv/
 .env
 .env.local

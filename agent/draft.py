@@ -86,6 +86,19 @@ def compose(
     return "\n".join(lines)
 
 
+def showing_note(listing: Listing, questions: Optional[list[str]] = None) -> str:
+    """The NOTES field on a platform showing request. The platform already
+    knows who we are, so no signature or contact details — just intent."""
+    parts = [f"Hi! I'm interested in {listing_label(listing)} and would love to see it."]
+    terms = availability_line(listing)
+    if not terms.startswith("I'd like to know"):
+        parts.append(terms)
+    if questions:
+        parts.append(" ".join(q if q.endswith("?") else q + "?" for q in questions))
+    parts.append("Thanks!")
+    return " ".join(parts)
+
+
 def route(listing: Listing) -> ContactMethod:
     """Which flow handles this listing. The agent branches here and nowhere else."""
     if listing.contact_method == ContactMethod.ACCOUNT_REQUIRED:

@@ -74,12 +74,12 @@ def approve(inquiry: Inquiry, approved_by: str) -> Inquiry:
     })
 
 
-def reject(inquiry: Inquiry, reason: str = "") -> Inquiry:
+def reject(inquiry: Inquiry, reason: str = "", by_human: bool = True) -> Inquiry:
     if inquiry.status not in (InquiryStatus.PENDING_APPROVAL, InquiryStatus.DRAFTED):
         raise BadTransition(f"cannot reject from {inquiry.status.value}")
     return inquiry.model_copy(update={
         "status": InquiryStatus.CANCELLED,
-        "steps": inquiry.steps + [f"cancelled by human{': ' + reason if reason else ''}"],
+        "steps": inquiry.steps + [f"cancelled{' by human' if by_human else ''}{': ' + reason if reason else ''}"],
     })
 
 
