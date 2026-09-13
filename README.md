@@ -1,6 +1,6 @@
 # Goose Nest 🪿
 
-**Student housing in Waterloo, ranked by what you actually care about — and an
+**Student housing in Waterloo, ranked by what you actually care about — and an AI goose
 agent that asks the landlord for a showing while you watch.**
 
 Finding a place isn't hard because listings are hard to find. It's hard because
@@ -10,7 +10,7 @@ form over and over. Goose Nest does the comparing for you, then hands the form
 to an AI agent running a real browser — which fills it in, stops, and waits for
 you to approve before anything is sent.
 
-> 📺 Demo video: _add YouTube link_ · 🧑‍⚖️ Built for _hackathon name_
+> 📺 Demo video: [Goose Nest - Waterloo Housing Ranked With Geese Spawns](https://www.youtube.com/watch?v=WCDtgOVVVzs)
 
 ---
 
@@ -23,21 +23,21 @@ Waterloo by postal code.
 **2. Rank them against how students live.** Every listing is scored on six
 factors you can re-weight, with the breakdown shown on every card:
 
-| Factor | How it's measured |
-|---|---|
-| Price | against your budget |
-| ION proximity | walking minutes to the nearest of all **19 ION LRT stops** |
-| Bedrooms | against what you're renting — a room, or a whole unit |
-| Geese | **1,789 real Canada Goose sightings** from iNaturalist within 500 m |
-| Highway access | distance to Conestoga Pkwy (7/8), Highway 85, Highway 401 |
-| GO proximity | Kitchener GO / University of Waterloo GO, the weekend-trip score |
+| Factor         | How it's measured                                                   |
+| -------------- | ------------------------------------------------------------------- |
+| Price          | against your budget                                                 |
+| ION proximity  | walking minutes to the nearest of all **19 ION LRT stops**          |
+| Bedrooms       | against what you're renting — a room, or a whole unit               |
+| Geese          | **1,789 real Canada Goose sightings** from iNaturalist within 500 m |
+| Highway access | distance to Conestoga Pkwy (7/8), Highway 85, Highway 401           |
+| GO proximity   | Kitchener GO / University of Waterloo GO, the weekend-trip score    |
 
 Filter by room vs. whole unit, lease vs. 4- or 8-month sublet, budget, walk to
 ION, and goose tolerance. View as a list, a map, or both.
 
 **3. Let an agent request the showing.** Pick a listing and the agent opens a
 real browser on [Steel](https://steel.dev), logged into a Rent Panda tenant
-account, fills out *Request a Showing* with your preferred times and questions,
+account, fills out _Request a Showing_ with your preferred times and questions,
 and **stops**. You watch it happen in an embedded live view. Then you see the
 values it actually typed — read back off the page — and hold to approve.
 Only then does it send, exactly once, and it confirms the request arrived.
@@ -51,7 +51,7 @@ it not to. Every one of these is enforced in code and tested:
 
 - **Sending is physically blocked while it fills.** The browser itself fails
   every POST/PUT/PATCH/DELETE to the site during the fill, in every tab — so
-  even if the model clicks *Send request*, nothing leaves.
+  even if the model clicks _Send request_, nothing leaves.
 - **What you approve is what's on the page.** The form is read back from the
   DOM and compared to the draft; any mismatch fails the run before you're asked.
 - **A human approves every send.** Press-and-hold in the UI. The database
@@ -93,13 +93,13 @@ Listings are collected the boring way — plain HTTP — because reading a page
 doesn't need a browser. The browser is reserved for the part that does:
 acting on a form that has no API.
 
-| Layer | Stack |
-|---|---|
-| Collection | Python 3.14, `httpx`, `selectolax`, `tenacity`, OpenStreetMap geocoding fallback |
-| Agent | `browser-use` 0.13, Steel (`steel-sdk`), Gemini 3.8 Flash with a Flash-Lite fallback, raw CDP for the guard |
-| Backend | FastAPI, Server-Sent Events |
-| Database | Supabase Postgres with row-level security |
-| Frontend | React, TypeScript, Vite |
+| Layer      | Stack                                                                                                       |
+| ---------- | ----------------------------------------------------------------------------------------------------------- |
+| Collection | Python 3.14, `httpx`, `selectolax`, `tenacity`, OpenStreetMap geocoding fallback                            |
+| Agent      | `browser-use` 0.13, Steel (`steel-sdk`), Gemini 3.8 Flash with a Flash-Lite fallback, raw CDP for the guard |
+| Backend    | FastAPI, Server-Sent Events                                                                                 |
+| Database   | Supabase Postgres with row-level security                                                                   |
+| Frontend   | React, TypeScript, Vite                                                                                     |
 
 ---
 
@@ -176,28 +176,28 @@ reachable it falls back to a simulated agent (the viewer footer says
 
 None of these send anything.
 
-| Command | Proves |
-|---|---|
-| `scripts/check_db.py` | Supabase credentials, schema, upsert |
-| `scripts/check_agent.py` | the approval gate refuses every unapproved path |
-| `scripts/check_guard.py` | write guard blocks fetch/XHR/form POSTs in old and new tabs; allow-once lets exactly one through |
-| `scripts/check_contact_api.py` | every `/inquiries` endpoint and the SSE stream, with a fake agent |
-| `scripts/check_steel.py` | Gemini + browser-use + Steel end to end, read-only |
-| `scripts/steel_login.py --verify` | the saved profile is still logged in |
+| Command                           | Proves                                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `scripts/check_db.py`             | Supabase credentials, schema, upsert                                                             |
+| `scripts/check_agent.py`          | the approval gate refuses every unapproved path                                                  |
+| `scripts/check_guard.py`          | write guard blocks fetch/XHR/form POSTs in old and new tabs; allow-once lets exactly one through |
+| `scripts/check_contact_api.py`    | every `/inquiries` endpoint and the SSE stream, with a fake agent                                |
+| `scripts/check_steel.py`          | Gemini + browser-use + Steel end to end, read-only                                               |
+| `scripts/steel_login.py --verify` | the saved profile is still logged in                                                             |
 
 Run each with `.venv/bin/python`.
 
 ## API
 
-| Method | Path | |
-|---|---|---|
-| GET | `/listings` | all listings, enriched |
-| POST | `/search` | ranked results with score breakdowns |
-| POST | `/inquiries` | start a showing request (returns `drafted`) |
-| GET | `/inquiries/{id}` | current state |
-| GET | `/inquiries/{id}/events` | SSE stream of state changes |
-| POST | `/inquiries/{id}/approve` | `{approved_by}` — only from `pending_approval` |
-| POST | `/inquiries/{id}/cancel` | only from `drafted` or `pending_approval` |
+| Method | Path                      |                                                |
+| ------ | ------------------------- | ---------------------------------------------- |
+| GET    | `/listings`               | all listings, enriched                         |
+| POST   | `/search`                 | ranked results with score breakdowns           |
+| POST   | `/inquiries`              | start a showing request (returns `drafted`)    |
+| GET    | `/inquiries/{id}`         | current state                                  |
+| GET    | `/inquiries/{id}/events`  | SSE stream of state changes                    |
+| POST   | `/inquiries/{id}/approve` | `{approved_by}` — only from `pending_approval` |
+| POST   | `/inquiries/{id}/cancel`  | only from `drafted` or `pending_approval`      |
 
 ---
 
@@ -215,5 +215,5 @@ Run each with `.venv/bin/python`.
 
 ## Team
 
-Built by _names_ — GitHub: [@vienna601](https://github.com/vienna601),
-[@anshjindal7](https://github.com/anshjindal7), _add teammates_.
+Built by Vienna, Ansh, Maira — GitHub: [@vienna601](https://github.com/vienna601),
+[@anshjindal7](https://github.com/anshjindal7), [@MairaOpel](https://github.com/MairaOpel)
